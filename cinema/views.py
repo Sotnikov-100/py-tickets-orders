@@ -55,7 +55,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
 
     def get_queryset(self):
-        return Order.objects.filter(
+        return Order.objects.prefetch_related("tickets").filter(
             user=self.request.user
         )
 
@@ -90,7 +90,7 @@ class MovieViewSet(viewsets.ModelViewSet):
 
         if genres:
             genre_ids = [
-                int(g) for g in genres.split(",") if g.isdigit()
+                int(genre) for genre in genres.split(",") if genre.isdigit()
             ]
             if genre_ids:
                 queryset = queryset.filter(
@@ -136,11 +136,7 @@ class MovieSessionViewSet(viewsets.ModelViewSet):
                 date_obj = datetime.strptime(
                     date, "%Y-%m-%d"
                 ).date()
-                queryset = queryset.filter(
-                    show_time__year=date_obj.year,
-                    show_time__month=date_obj.month,
-                    show_time__day=date_obj.day
-                )
+                queryset = queryset.filter(show_time__date=date_obj)
             except ValueError:
                 pass
 

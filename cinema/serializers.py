@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from cinema.models import (
@@ -165,20 +166,40 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = ("id", "tickets", "created_at")
 
+    @transaction.atomic
     def create(self, validated_data):
         tickets_data = validated_data.pop("tickets")
         order = Order.objects.create(**validated_data)
 
-        for ticket_data in tickets_data:
-            Ticket.objects.create(order=order, **ticket_data)
+        try:
+            for ticket_data in tickets_data:
+                Ticket.objects.create(order=order, **ticket_data)
+        except Exception as e:
+            raise serializers.ValidationError(
+                {"tickets": f"Error creating tickets: {str(e)}"}
+            )
 
         return order
 
     def validate_tickets(self, tickets_data):
         if not tickets_data:
             raise serializers.ValidationError(
-                "You must provide at least one ticket"
+                {"tickets": "You must provide at least one ticket"}
             )
+
+        seen_seats = set()
+        for ticket in tickets_data:
+            seat_key = (
+                ticket["movie_session"].id,
+                ticket["row"],
+                ticket["seat"]
+            )
+            if seat_key in seen_seats:
+                raise serializers.ValidationError(
+                    {"tickets": "Duplicate seat in the same order"}
+                )
+            seen_seats.add(seat_key)
+
         return tickets_data
 
 
